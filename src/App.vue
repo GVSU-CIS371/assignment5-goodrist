@@ -12,6 +12,7 @@
               :id="`r${temp}`"
               :value="temp"
               v-model="beverageStore.currentTemp"
+              :disabled="!beverageStore.user"
             />
             {{ temp }}
           </label>
@@ -29,6 +30,7 @@
               :id="`r${b.id}`"
               :value="b"
               v-model="beverageStore.currentBase"
+              :disabled="!beverageStore.user"
             />
             {{ b.name }}
           </label>
@@ -46,6 +48,7 @@
               :id="`r${s.id}`"
               :value="s"
               v-model="beverageStore.currentSyrup"
+              :disabled="!beverageStore.user"
             />
             {{ s.name }}
           </label>
@@ -63,6 +66,7 @@
               :id="`r${c.id}`"
               :value="c"
               v-model="beverageStore.currentCreamer"
+              :disabled="!beverageStore.user"
             />
             {{ c.name }}
           </label>
@@ -70,32 +74,47 @@
       </li>
     </ul>
 
+    <!-- AUTH -->
     <div class="auth-row">
-      <button @click="withGoogle">Sign in with Google</button>
+      <button v-if="!beverageStore.user" @click="withGoogle">
+        Sign in with Google
+      </button>
+
+      <div v-else class="user-label">
+        Signed in as: <strong>{{ beverageStore.user.email }}</strong>
+      </div>
+
+      <button v-if="beverageStore.user" @click="logout">
+        Sign Out
+      </button>
     </div>
+
     <input
       v-model="beverageStore.currentName"
       type="text"
       placeholder="Beverage Name"
+      :disabled="!beverageStore.user"
     />
 
-    <button @click="handleMakeBeverage">🍺 Make Beverage</button>
+    <button @click="handleMakeBeverage" :disabled="!beverageStore.user">
+      🍺 Make Beverage
+    </button>
 
     <p v-if="message" class="status-message">
       {{ message }}
     </p>
   </div>
 
-  <div style="margin-top: 20px">
-    <template v-for="beverage in beverageStore.beverages" :key="beverage.id">
+  <div v-if="beverageStore.user" style="margin-top: 20px">
+    <template v-for="bev in beverageStore.beverages" :key="bev.id">
       <input
         type="radio"
-        :id="beverage.id"
-        :value="beverage"
+        :id="bev.id"
+        :value="bev"
         v-model="beverageStore.currentBeverage"
         @change="beverageStore.showBeverage()"
       />
-      <label :for="beverage.id">{{ beverage.name }}</label>
+      <label :for="bev.id">{{ bev.name }}</label>
     </template>
   </div>
 </template>
@@ -104,6 +123,7 @@
 import { ref } from "vue";
 import Beverage from "./components/Beverage.vue";
 import { useBeverageStore } from "./stores/beverageStore";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 
 const beverageStore = useBeverageStore();
 beverageStore.init();
@@ -117,10 +137,32 @@ const showMessage = (txt: string) => {
   }, 5000);
 };
 
-const withGoogle = async () => {};
+const withGoogle = async () => {
+  try {
+    const auth = getAuth();
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
 
-const handleMakeBeverage = () => {
-  const txt = beverageStore.makeBeverage();
+    beverageStore.setUser(result.user);
+    showMessage("Signed in successfully!");
+  } catch (e: any) {
+    showMessage("Login failed: " + e.message);
+  }
+};
+
+const logout = async () => {
+  try {
+    const auth = getAuth();
+    await signOut(auth);
+    beverageStore.setUser(null);
+    showMessage("Signed out.");
+  } catch (e: any) {
+    showMessage("Logout failed: " + e.message);
+  }
+};
+
+const handleMakeBeverage = async () => {
+  const txt = await beverageStore.makeBeverage();
   showMessage(txt);
 };
 </script>
@@ -152,12 +194,6 @@ ul {
 .user-label {
   color: #ffffff;
   font-size: 0.9rem;
-}
-
-.hint {
-  margin-top: 4px;
-  color: #ffffff;
-  font-size: 0.85rem;
 }
 
 .status-message {
